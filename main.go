@@ -50,7 +50,8 @@ type Metrics struct {
 }
 
 // Init initializes a metrics struct
-func (m *Metrics) Init(cfg *config.NamespaceConfig) {
+func (m *Metrics) Init(cfg *config.NamespaceConfig, globalConfig config.GlobalConfig) {
+	constLabels := make(map[string]string)
 	cfg.MustCompile()
 
 	labels := cfg.OrderedLabelNames
@@ -63,48 +64,60 @@ func (m *Metrics) Init(cfg *config.NamespaceConfig) {
 		labels = append(labels, cfg.RelabelConfigs[i].TargetLabel)
 	}
 
+	if len(globalConfig.Namespace) > 0 {
+		cfg.Name = globalConfig.Namespace
+		constLabels["namespace"] = cfg.Name
+	}
+
 	m.countTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: cfg.Name,
-		Name:      "http_response_count_total",
-		Help:      "Amount of processed HTTP requests",
+		Namespace:   cfg.Name,
+		Name:        "http_response_count_total",
+		Help:        "Amount of processed HTTP requests",
+		ConstLabels: constLabels,
 	}, labels)
 
 	m.bytesTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: cfg.Name,
-		Name:      "http_response_size_bytes",
-		Help:      "Total amount of transferred bytes",
+		Namespace:   cfg.Name,
+		Name:        "http_response_size_bytes",
+		Help:        "Total amount of transferred bytes",
+		ConstLabels: constLabels,
 	}, labels)
 
 	m.upstreamSeconds = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace: cfg.Name,
-		Name:      "http_upstream_time_seconds",
-		Help:      "Time needed by upstream servers to handle requests",
+		Namespace:   cfg.Name,
+		Name:        "http_upstream_time_seconds",
+		Help:        "Time needed by upstream servers to handle requests",
+		ConstLabels: constLabels,
 	}, labels)
 
 	m.upstreamSecondsHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: cfg.Name,
-		Name:      "http_upstream_time_seconds_hist",
-		Help:      "Time needed by upstream servers to handle requests",
-		Buckets:   cfg.HistogramBuckets,
+		Namespace:   cfg.Name,
+		Name:        "http_upstream_time_seconds_hist",
+		Help:        "Time needed by upstream servers to handle requests",
+		Buckets:     cfg.HistogramBuckets,
+		ConstLabels: constLabels,
 	}, labels)
 
 	m.responseSeconds = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Namespace: cfg.Name,
-		Name:      "http_response_time_seconds",
-		Help:      "Time needed by NGINX to handle requests",
+		Namespace:   cfg.Name,
+		Name:        "http_response_time_seconds",
+		Help:        "Time needed by NGINX to handle requests",
+		ConstLabels: constLabels,
 	}, labels)
 
 	m.responseSecondsHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace: cfg.Name,
-		Name:      "http_response_time_seconds_hist",
-		Help:      "Time needed by NGINX to handle requests",
-		Buckets:   cfg.HistogramBuckets,
+		Namespace:   cfg.Name,
+		Name:        "http_response_time_seconds_hist",
+		Help:        "Time needed by NGINX to handle requests",
+		Buckets:     cfg.HistogramBuckets,
+		ConstLabels: constLabels,
 	}, labels)
 
 	m.parseErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: cfg.Name,
-		Name:      "parse_errors_total",
-		Help:      "Total number of log file lines that could not be parsed",
+		Namespace:   cfg.Name,
+		Name:        "parse_errors_total",
+		Help:        "Total number of log file lines that could not be parsed",
+		ConstLabels: constLabels,
 	})
 
 	prometheus.MustRegister(m.countTotal)
@@ -180,7 +193,7 @@ func main() {
 	for _, ns := range cfg.Namespaces {
 		fmt.Printf("starting listener for namespace %s\n", ns.Name)
 
-		go processNamespace(ns)
+		go processNamespace(ns, cfg.Global)
 	}
 
 	listenAddr := fmt.Sprintf("%s:%d", cfg.Listen.Address, cfg.Listen.Port)
@@ -229,13 +242,13 @@ func setupConsul(cfg *config.Config, stopChan <-chan bool, stopHandlers *sync.Wa
 	stopHandlers.Add(1)
 }
 
-func processNamespace(nsCfg config.NamespaceConfig) {
+func processNamespace(nsCfg config.NamespaceConfig, globalConfig config.GlobalConfig) {
 	var followers []tail.Follower
 
 	parser := gonx.NewParser(nsCfg.Format)
 
 	metrics := Metrics{}
-	metrics.Init(&nsCfg)
+	metrics.Init(&nsCfg, globalConfig)
 
 	for _, f := range nsCfg.SourceData.Files {
 		t, err := tail.NewFileFollower(f)

@@ -15,6 +15,10 @@ consul {
   }
 }
 
+global {
+  namespace = "nginx"
+}
+
 namespace "nginx" {
   source = {
     files = [

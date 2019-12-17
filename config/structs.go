@@ -18,6 +18,7 @@ type StartupFlags struct {
 type Config struct {
 	Listen                     ListenConfig
 	Consul                     ConsulConfig
+	Global                     GlobalConfig
 	Namespaces                 []NamespaceConfig `hcl:"namespace"`
 	EnableExperimentalFeatures bool              `hcl:"enable_experimental" yaml:"enable_experimental"`
 
@@ -25,6 +26,11 @@ type Config struct {
 	// "enableexperimentalfeatures" property (although documented as "enable_experimental").
 	// This property is here for enabling the config to behave as documented, while keeping BC.
 	EnableExperimentalFeaturesOld bool `yaml:"enableexperimentalfeatures"`
+}
+
+// Global configuration is affected whole application
+type GlobalConfig struct {
+	Namespace string
 }
 
 // ListenConfig is a struct describing the built-in webserver configuration
